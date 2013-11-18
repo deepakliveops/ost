@@ -1,0 +1,255 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Twilio Phone</title>
+    <script type="text/javascript" src="http://static.twilio.com/libs/twiliojs/1.0/twilio.min.js"></script>
+    <!-- <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>-->
+    <script type="text/javascript" src="//code.jquery.com/jquery-1.10.2.min.js"></script>
+    <!--<link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />-->
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/latest/css/bootstrap.min.css" />
+    <script type="text/javascript" src="//netdna.bootstrapcdn.com/bootstrap/latest/js/bootstrap.min.js"></script>
+    <!--<script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>-->
+    <style type="text/css">
+        body {
+            text-align: center;
+            margin: 0;
+            background: url(https://static0.twilio.com/packages/quickstart/whitey.png) center top repeat;
+        }
+    </style>
+    <script type="text/javascript">
+
+        var incomingCall = null;
+
+        function initialize(acs_token) {
+            $.support.cors = true;
+            var acstoken = $("#acs_session").val();
+            if (acs_token != null && acs_token != undefined)
+                acstoken = acs_token;
+            $.ajax(
+                {
+                    url: "http://dgowda-test.apigee.net/v1/agent/current.json?acs_session=" + acstoken,
+                    jsonpCallback: 'jsonCallback',
+                    //contentType: "application/json",
+                    dataType: 'json',
+                    success: function (d) {
+                        var t = '';
+                        if (d && d.data && d.data.returnObject.browserPhoneConfig)
+                            t = d.data.returnObject.browserPhoneConfig.twilioCapabilityToken;
+                        else
+                            t = d.returnObject.browserPhoneConfig.twilioCapabilityToken;
+                        $("#agent").text(d.returnObject.firstName + " " + d.returnObject.lastName);
+                        $("#agentphone").text(d.returnObject.phonenum);
+                        initialize_twilio(t);
+                    },
+                    error: function (e) {
+                        console.log(e);
+                        alert(e.responseText)
+                    }
+                });
+        }
+
+        function initialize_twilio(token) {
+
+            Twilio.Device.setup(token);
+
+            Twilio.Device.ready(function (device) {
+                $("#log").text("Softphone ready");
+            });
+
+            Twilio.Device.error(function (error) {
+                $("#log").text("Error: " + error.message);
+            });
+
+            Twilio.Device.connect(function (conn) {
+                $("#log").text("Call connected - ");
+            });
+
+            Twilio.Device.disconnect(function (conn) {
+                $("#log").text("Call ended");
+                //HideIncomingCallNotification();
+                HideCallControls();
+            });
+
+            Twilio.Device.incoming(function (conn) {
+                $("#log").text("Incoming connection from " + conn.parameters.From);
+                incomingCall = conn;
+                ShowIncomingCallNotification();
+                //$("#dialog-confirm").dialog("open");
+                // accept the incoming connection and start two-way audio
+                //if (window.confirm("Incoming Call from - " + conn.parameters.From + ". Answer ?"))
+                //  conn.accept();
+
+            });
+            Twilio.Device.cancel(function (conn) {
+                //alert('cancelled');
+                //console.log(conn);
+                conn.accept();
+                HideCallControls();
+            });
+        }
+        function call() {
+            // get the phone number or client to connect the call to
+            params = { "PhoneNumber": $("#number").val() };
+            Twilio.Device.connect(params);
+        }
+
+        function hangup() {
+            Twilio.Device.disconnectAll();
+            HideCallControls();
+        }
+        //$(initialize_twilio);
+    </script>
+
+
+    <script>
+        var ticker = null;
+        function getQuerystring(key, qs) {
+            var query = window.location.search.substring(1);
+            if (qs != null) query = qs;
+            var vars = query.split("&");
+            for (var i = 0; i < vars.length; i++) {
+                var pair = vars[i].split("=");
+                if (pair[0] == key) {
+                    return pair[1];
+                }
+            }
+        }
+
+        function PageLoad() {
+            var acs_token = getQuerystring("acs_session");
+            if (acs_token != null)
+                initialize(acs_token);
+        }
+
+        function ShowIncomingCallNotification() {
+            $("#callnotification").show('slow');
+        }
+
+        function HideIncomingCallNotification() {
+            $("#callnotification").hide('slow');
+        }
+        function ShowCallControls() {
+            $("#time").text("");
+           ticker = setInterval(Tick, 1000);
+            $("#phoneControls").show('medium');
+        }
+        function HideCallControls() {
+            clearInterval(ticker);
+            $("#phoneControls").hide('medium');
+        }
+
+        function AnswerCall() {            
+            h = 0, m = 0, s = 0;
+            d = new Date(0, 0, 0, 0, 0, 0, 0);
+            HideIncomingCallNotification();
+            incomingCall.accept();
+            ShowCallControls();
+        }
+        function RejectCall() {
+            HideIncomingCallNotification();
+            incomingCall.disconnect();
+            //ShowCallControls();
+        }
+        function CancelCall() {
+            HideIncomingCallNotification();
+            incomingCall.cancel();
+            //ShowCallControls();
+        }
+        $(PageLoad);
+
+
+    </script>
+
+    <script>
+        var d, h = 0, m = 0, s = 0;
+        d = new Date(0, 0, 0, 0, 0, 0, 0);
+        function Tick() {
+            s++;
+
+            h = d.getHours();
+            m = d.getMinutes();
+
+            if (s == 60) {
+                m++;
+                s = 0;
+                d.setMinutes(m);
+            }
+
+            if (m == 60) {
+                h++;
+                m = 0;
+                d.setHours(h);
+            }
+
+            d.setSeconds(s);
+
+            var th = h, tm = m, ts = s;
+            if (h <= 9)
+                th = "0" + h;
+            if (m <= 9)
+                tm = "0" + m;
+            if (s <= 9)
+                ts = "0" + s;
+
+            $("#time").text(th + ":" + tm + ":" + ts);
+        }
+    </script>
+</head>
+<body>
+
+    <div>
+        <div id="status">
+            <div id="log">Loading ...</div>
+        </div>
+        <table class="table table-bordered">
+            <tr>
+                <td>Agent
+                </td>
+                <td>
+                    <div class=" panel-success"><span class="span2" id="agent"></span></div>
+                </td>
+            </tr>
+            <tr>
+                <td>Phone
+                </td>
+                <td>
+                    <span id="agentphone"></span>
+                </td>
+            </tr>
+        </table>        
+        <!--<div> 
+            <span class="span2 badge" id="agent"></span>
+                <span id="agentphone"></span>
+        </div>-->
+    </div>
+    <div id="callnotification" style="display: none; background-color: #FFFFFF" class="">
+        <table>
+            <tr>
+                <td>
+                    <img src="Images/phone-animated-2.gif" class="img-rounded" />
+                </td>
+                <td>
+                    <div class="" style="font-size: large">
+                        Incoming call from <b><span id="incomingnumber">4088587914</span></b>
+                    </div>
+                    <button class="btn btn-success btn-lg" onclick="AnswerCall();"><i class="glyphicon glyphicon-earphone"></i>Answer</button>
+                </td>
+            </tr>
+        </table>
+
+
+    </div>
+    <div id="phoneControls" style="display: none">
+        <div id="runtime">
+            Current Call :  <span id="time" class="label-info"></span>
+        </div>
+        <!--<button class="btn btn-primary">Mute</button>
+        <button class="btn btn-success">Un-Mute</button>-->
+        <button class="btn btn-warning" onclick="hangup();">
+            Hangup
+        </button>
+    </div>
+
+    <footer class=""></footer>
+</body>
+</html>
